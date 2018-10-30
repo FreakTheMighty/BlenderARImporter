@@ -3,7 +3,10 @@ import bpy
 from bpy.props import *
 from bpy.types import Menu, Operator, Panel, UIList, AddonPreferences
 from bpy.app.handlers import persistent
-from os.path import basename, dirname
+import os
+from os.path import basename, dirname, join
+import shutil
+import requests
 
 class ARImporterAddonPreferences(AddonPreferences):
 
@@ -45,9 +48,29 @@ class ARImportLatest(Operator):
 
     def execute(self, context):
         user_preferences = context.user_preferences
-        print(user_preferences.addons.keys())
         addon_prefs = user_preferences.addons[basename(dirname(__file__))].preferences
+        root_url = "http://%s/" % addon_prefs.ip_address
+
         print("Importing latest " + addon_prefs.ip_address)
+        resp = requests.get(root_url + "shots").json()
+        latest = resp[0]
+        print(latest)
+        local_shot_dir = join(addon_prefs.ar_root, latest["uuid"])
+
+        file_types = ["_pointcloud_z.ply", ".mov", "_scene.fbx"]
+        try:
+            # Create target Directory
+            os.mkdir(local_shot_dir)
+        except FileExistsError:
+            print("Directory ", local_shot_dir, " already exists")
+
+        for file_type in file_types:
+            remote_url  = root_url + "content/shots/%s/shot-%s%s" % (latest["uuid"], latest["uuid"], file_type)
+            file_basename = basename(remote_url)
+            local_file = join(local_shot_dir, file_basename)
+            r = requests.get(remote_url, allow_redirects=True)
+            open(local_file, 'wb').write(r.content)
+
         return {'FINISHED'}
 
 
