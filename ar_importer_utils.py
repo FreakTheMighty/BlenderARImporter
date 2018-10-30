@@ -64,12 +64,32 @@ class ARImportLatest(Operator):
         except FileExistsError:
             print("Directory ", local_shot_dir, " already exists")
 
+        local_files = []
         for file_type in file_types:
             remote_url  = root_url + "content/shots/%s/shot-%s%s" % (latest["uuid"], latest["uuid"], file_type)
             file_basename = basename(remote_url)
             local_file = join(local_shot_dir, file_basename)
+            local_files.append(local_file)
             r = requests.get(remote_url, allow_redirects=True)
             open(local_file, 'wb').write(r.content)
+
+        for local_file in local_files:
+            if local_file.endswith(".fbx"):
+                bpy.ops.import_scene.fbx(filepath=local_file, anim_offset=0, bake_space_transform=True)
+            if local_file.endswith(".ply"):
+                bpy.ops.import_mesh.ply(filepath=local_file)
+            if local_file.endswith(".mov"):
+                clip = bpy.data.movieclips.load(local_file)
+                for area in bpy.context.screen.areas:
+                    if area.type == 'VIEW_3D':
+                        space_data = area.spaces.active
+                        space_data.show_background_images = True
+                        bg = space_data.background_images.new()
+                        bg.clip = clip
+                        bg.source = 'MOVIE_CLIP'
+                        bg.use_camera_clip = False
+                        bg.opacity = 1
+                        break
 
         return {'FINISHED'}
 
